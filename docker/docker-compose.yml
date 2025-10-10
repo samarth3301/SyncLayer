@@ -1,8 +1,6 @@
 services:
   synclayer:
-    build:
-      context: ..
-      dockerfile: docker/Dockerfile
-      
-    env_file: ../.env
-    command: ["/app/SyncLayer"]
+    image: samarth3301/synclayer:latest
+    volumes:
+      - ../config:/app/config
+    restart: unless-stopped
