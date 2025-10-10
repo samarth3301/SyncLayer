@@ -15,7 +15,6 @@ FROM ubuntu:22.04 AS runtime
 RUN apt-get update && apt-get install -y libpq5 libyaml-cpp0.7 libspdlog1 && rm -rf /var/lib/apt/lists/*
 WORKDIR /app
 COPY --from=build /app/build/SyncLayer /app/SyncLayer
-COPY config/ /app/config/
 
 ENV SYNC_LOG_LEVEL=info
 CMD ["/app/SyncLayer"]
