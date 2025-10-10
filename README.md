@@ -57,9 +57,20 @@ docker pull samarth3301/synclayer:latest
    ```
    This starts the service in detached mode, running the sync process every hour.
 
+**Important**: The config file (`sync-config.yaml`) is not included in the Docker image for security reasons. You must mount your own config directory containing the YAML file.
+
+If you want to use a different config path inside the container, set the `SYNC_CONFIG_PATH` environment variable in your `docker-compose.yml`:
+
+```yaml
+environment:
+  - SYNC_CONFIG_PATH=/app/myconfig/sync-config.yaml
+volumes:
+  - ./myconfig:/app/myconfig
+```
+
 ### Configuration
 
-The microservice is configured via `config/sync-config.yaml`. Edit this file to set up your databases and sync parameters:
+The microservice is configured via `config/sync-config.yaml`. Edit this file to set up your databases and sync parameters. You can also set the config file path using the `SYNC_CONFIG_PATH` environment variable (defaults to `./config/sync-config.yaml`).
 
 ```yaml
 databases:

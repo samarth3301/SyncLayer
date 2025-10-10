@@ -1,6 +1,4 @@
 services:
   synclayer:
     image: samarth3301/synclayer:latest
-    volumes:
-      - ../config:/app/config
     restart: unless-stopped

@@ -4,6 +4,12 @@
 #include <spdlog/spdlog.h>
 #include <chrono>
 #include <thread>
+#include <cstdlib>
+
+std::string getConfigPath() {
+    const char* envPath = std::getenv("SYNC_CONFIG_PATH");
+    return envPath && *envPath ? std::string(envPath) : "./config/sync-config.yaml";
+}
 
 int main(int argc, char* argv[]) {
     try {
@@ -13,7 +19,7 @@ int main(int argc, char* argv[]) {
         // 2. Initialize DB Connections
         // 3. Start the Core Engine orchestration loop
         
-        SyncLayer::Core::Engine engine("./config/sync-config.yaml");
+        SyncLayer::Core::Engine engine(getConfigPath());
         
         while (true) {
             engine.run();
