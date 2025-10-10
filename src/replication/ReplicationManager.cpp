@@ -6,6 +6,7 @@
 #include "queue/QueueHandler.hpp"
 #include "utils/Retry.hpp"
 #include <spdlog/spdlog.h>
+#include <cstring>
 
 namespace SyncLayer::Replication {
 
@@ -23,63 +24,75 @@ void ReplicationManager::initialSync()
 {
     const auto& tables = tracker_->getTrackedTables();
     spdlog::info("Starting initial data sync for {} tables", tables.size());
+    const int pageSize = 1000;
     for (const auto& table : tables) {
-        // Extract table name, handling schema prefix
-        size_t dotPos = table.find_last_of('.');
-        std::string tableName = (dotPos != std::string::npos) ? table.substr(dotPos + 1) : table;
-        spdlog::info("Syncing data for table: {}", tableName);
-        
-        std::string query = "SELECT * FROM \"" + tableName + "\"";
-        PGresult* res = executeWithRetry(local_->raw(), query);
-        if (!res || PQresultStatus(res) != PGRES_TUPLES_OK) {
-            spdlog::error("Failed to select from {} after retries: {}", tableName, res ? PQerrorMessage(local_->raw()) : "No result");
-            if (res) PQclear(res);
+        const auto& pk = tracker_->getPrimaryKeys(table);
+        if (pk.empty()) {
+            spdlog::warn("Skipping table {} due to no primary key", table);
             continue;
         }
+        spdlog::info("Syncing data for table: {}", table);
         
-        int nFields = PQnfields(res);
-        int nRows = PQntuples(res);
-        spdlog::info("Table {} has {} rows", tableName, nRows);
+        std::string orderBy = " ORDER BY ";
+        for (size_t i = 0; i < pk.size(); ++i) {
+            if (i > 0) orderBy += ", ";
+            orderBy += "\"" + pk[i] + "\"";
+        }
         
-        if (nRows == 0) continue; // No data to sync
-        
-        for (int i = 0; i < nRows; ++i) {
-            std::string insert = "INSERT INTO \"" + tableName + "\" (";
-            for (int j = 0; j < nFields; ++j) {
-                if (j > 0) insert += ",";
-                insert += "\"" + std::string(PQfname(res, j)) + "\"";
-            }
-            insert += ") VALUES (";
-            for (int j = 0; j < nFields; ++j) {
-                if (j > 0) insert += ",";
-                if (PQgetisnull(res, i, j)) {
-                    insert += "NULL";
-                } else {
-                    const char* val = PQgetvalue(res, i, j);
-                    char* escaped = PQescapeLiteral(hosted_->raw(), val, strlen(val));
-                    if (escaped) {
-                        insert += escaped;
-                        PQfreemem(escaped);
-                    } else {
-                        insert += "NULL"; // fallback
-                    }
-                }
-            }
-            insert += ") ON CONFLICT (\"" + std::string(PQfname(res, 0)) + "\") DO UPDATE SET ";
-            for (int j = 1; j < nFields; ++j) {
-                if (j > 1) insert += ", ";
-                insert += "\"" + std::string(PQfname(res, j)) + "\" = EXCLUDED.\"" + std::string(PQfname(res, j)) + "\"";
+        int offset = 0;
+        int totalRows = 0;
+        while (true) {
+            std::string query = "SELECT * FROM " + table + orderBy + " LIMIT " + std::to_string(pageSize) + " OFFSET " + std::to_string(offset);
+            PGresult* res = executeWithRetry(local_->raw(), query);
+            if (!res || PQresultStatus(res) != PGRES_TUPLES_OK) {
+                spdlog::error("Failed to select from {}: {}", table, res ? PQerrorMessage(local_->raw()) : "No result");
+                if (res) PQclear(res);
+                break;
             }
             
-            PGresult* insRes = executeWithRetry(hosted_->raw(), insert);
-            if (!insRes || PQresultStatus(insRes) != PGRES_COMMAND_OK) {
-                spdlog::error("Failed to upsert into {} after retries: {}", tableName, insRes ? PQerrorMessage(hosted_->raw()) : "No result");
-            } else {
-                spdlog::info("Upserted row {} into {}", i + 1, tableName);
+            int nRows = PQntuples(res);
+            if (nRows == 0) {
+                PQclear(res);
+                break;
             }
-            if (insRes) PQclear(insRes);
+            
+            int nFields = PQnfields(res);
+            for (int i = 0; i < nRows; ++i) {
+                std::string insert = "INSERT INTO " + table + " (";
+                for (int j = 0; j < nFields; ++j) {
+                    if (j > 0) insert += ",";
+                    insert += "\"" + std::string(PQfname(res, j)) + "\"";
+                }
+                insert += ") VALUES (";
+                for (int j = 0; j < nFields; ++j) {
+                    if (j > 0) insert += ",";
+                    if (PQgetisnull(res, i, j)) {
+                        insert += "NULL";
+                    } else {
+                        const char* val = PQgetvalue(res, i, j);
+                        char* escaped = PQescapeLiteral(hosted_->raw(), val, strlen(val));
+                        if (escaped) {
+                            insert += escaped;
+                            PQfreemem(escaped);
+                        } else {
+                            insert += "NULL";
+                        }
+                    }
+                }
+                insert += ") ON CONFLICT DO NOTHING"; // For initial sync, avoid duplicates
+                
+                PGresult* insRes = executeWithRetry(hosted_->raw(), insert);
+                if (!insRes || PQresultStatus(insRes) != PGRES_COMMAND_OK) {
+                    spdlog::error("Failed to insert into {}: {}", table, insRes ? PQerrorMessage(hosted_->raw()) : "No result");
+                }
+                if (insRes) PQclear(insRes);
+            }
+            PQclear(res);
+            totalRows += nRows;
+            offset += pageSize;
+            spdlog::info("Synced {} rows for table {} (offset {})", nRows, table, offset);
         }
-        PQclear(res);
+        spdlog::info("Completed syncing {} rows for table {}", totalRows, table);
     }
     spdlog::info("Initial data sync completed");
 }

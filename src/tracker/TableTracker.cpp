@@ -11,6 +11,7 @@ TableTracker::TableTracker(SyncLayer::DB::DBConnection* local, std::shared_ptr<S
 void TableTracker::discoverTables()
 {
     trackedTables_.clear();
+    tablePrimaryKeys_.clear();
     auto cfgTables = config_->getTables();
     if (!cfgTables.empty()) {
         trackedTables_ = cfgTables;
@@ -28,6 +29,33 @@ void TableTracker::discoverTables()
         }
         PQclear(res);
     }
+
+    // Discover primary keys for each table
+    for (const auto& table : trackedTables_) {
+        size_t dotPos = table.find('.');
+        std::string schema = table.substr(0, dotPos);
+        std::string tableName = table.substr(dotPos + 1);
+        std::string pkQuery = "SELECT kcu.column_name FROM information_schema.table_constraints tc "
+                              "JOIN information_schema.key_column_usage kcu ON tc.constraint_name = kcu.constraint_name "
+                              "WHERE tc.table_name = '" + tableName + "' AND tc.table_schema = '" + schema + "' AND tc.constraint_type = 'PRIMARY KEY' "
+                              "ORDER BY kcu.ordinal_position";
+        PGresult* pkRes = PQexec(local_->raw(), pkQuery.c_str());
+        if (PQresultStatus(pkRes) == PGRES_TUPLES_OK) {
+            int nPkRows = PQntuples(pkRes);
+            std::vector<std::string> pkColumns;
+            for (int i = 0; i < nPkRows; ++i) {
+                pkColumns.push_back(PQgetvalue(pkRes, i, 0));
+            }
+            tablePrimaryKeys_[table] = pkColumns;
+            if (pkColumns.empty()) {
+                spdlog::warn("No primary key found for table {}", table);
+            }
+        } else {
+            spdlog::error("Failed to get primary key for {}: {}", table, PQerrorMessage(local_->raw()));
+        }
+        PQclear(pkRes);
+    }
+
     std::string joinedTables;
     if (!trackedTables_.empty()) {
         joinedTables = trackedTables_[0];
@@ -51,6 +79,13 @@ std::vector<ChangeEvent> TableTracker::fetchChanges(int batchSize)
 const std::vector<std::string>& TableTracker::getTrackedTables() const
 {
     return trackedTables_;
+}
+
+const std::vector<std::string>& TableTracker::getPrimaryKeys(const std::string& table) const
+{
+    static const std::vector<std::string> empty;
+    auto it = tablePrimaryKeys_.find(table);
+    return it != tablePrimaryKeys_.end() ? it->second : empty;
 }
 
 } // namespace SyncLayer::Tracker
