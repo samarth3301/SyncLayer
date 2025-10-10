@@ -79,7 +79,8 @@ databases:
 sync:
   interval_seconds: 5  # Internal sync interval (not used in hourly mode)
   batch_size: 50
-  tables: ["table1", "table2"]  # List of tables to sync, or [] for all
+  auto_fetch: true  # Set to true for auto-discovery of all tables, false to use manual list
+  tables: []  # List of tables to sync when auto_fetch is false
 
 logging:
   level: info  # debug, info, warn, error
@@ -87,7 +88,7 @@ logging:
 ```
 
 - **Databases**: Specify connection details for local and hosted PostgreSQL databases.
-- **Sync**: Set batch size and tables to replicate. The service runs every hour regardless of `interval_seconds`.
+- **Sync**: Set batch size and table discovery mode. Use `auto_fetch: true` to automatically discover all tables in the public schema, or set to `false` and list specific tables in the `tables` array. The service runs every hour regardless of `interval_seconds`.
 - **Logging**: Adjust log level and output file.
 
 ### Run Directly with Docker

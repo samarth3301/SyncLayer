@@ -15,6 +15,7 @@ public:
 
     int getIntervalSeconds() const;
     int getBatchSize() const;
+    bool getAutoFetch() const;
     std::vector<std::string> getTables() const;
 
     std::string getLogLevel() const;
@@ -28,6 +29,7 @@ private:
     std::string hostedConn_;
     int intervalSeconds_ {5};
     int batchSize_ {50};
+    bool autoFetch_ {true};
     std::vector<std::string> tables_;
     std::string logLevel_ {"info"};
     std::string logFile_ {"logs/synclayer.log"};

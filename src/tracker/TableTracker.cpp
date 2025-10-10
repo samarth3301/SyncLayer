@@ -12,10 +12,7 @@ void TableTracker::discoverTables()
 {
     trackedTables_.clear();
     tablePrimaryKeys_.clear();
-    auto cfgTables = config_->getTables();
-    if (!cfgTables.empty()) {
-        trackedTables_ = cfgTables;
-    } else {
+    if (config_->getAutoFetch()) {
         // Discover all user tables in public schema
         PGresult* res = PQexec(local_->raw(), "SELECT table_name FROM information_schema.tables WHERE table_schema = 'public' AND table_type = 'BASE TABLE'");
         if (PQresultStatus(res) == PGRES_TUPLES_OK) {
@@ -28,6 +25,9 @@ void TableTracker::discoverTables()
             spdlog::error("Failed to discover tables: {}", PQerrorMessage(local_->raw()));
         }
         PQclear(res);
+    } else {
+        // Use manually specified tables
+        trackedTables_ = config_->getTables();
     }
 
     // Discover primary keys for each table

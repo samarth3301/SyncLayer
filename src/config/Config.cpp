@@ -20,17 +20,15 @@ static int envOrInt(const char* name, int fallback) {
     return fallback;
 }
 
-static std::vector<std::string> envOrList(const char* name, const std::vector<std::string>& fallback) {
+static bool envOrBool(const char* name, bool fallback) {
     const char* v = std::getenv(name);
-    if (!(v && *v)) return fallback;
-    std::vector<std::string> out;
-    std::string s(v);
-    std::string token;
-    std::istringstream ss(s);
-    while (std::getline(ss, token, ',')) {
-        if (!token.empty()) out.push_back(token);
+    if (v && *v) {
+        std::string s(v);
+        if (s == "true" || s == "1") return true;
+        if (s == "false" || s == "0") return false;
+        return fallback;
     }
-    return out;
+    return fallback;
 }
 
 static std::string makeConn(const YAML::Node& node,
@@ -65,13 +63,14 @@ void Config::loadFromFile(const std::string& path) {
         const auto sync = root["sync"];
         intervalSeconds_ = envOrInt("SYNC_INTERVAL_SECONDS", sync["interval_seconds"].as<int>(5));
         batchSize_ = envOrInt("SYNC_BATCH_SIZE", sync["batch_size"].as<int>(50));
+        autoFetch_ = envOrBool("SYNC_AUTO_FETCH", sync["auto_fetch"].as<bool>(true));
         std::vector<std::string> yamlTables;
         if (sync["tables"]) {
             for (const auto& t : sync["tables"]) {
                 yamlTables.push_back(t.as<std::string>());
             }
         }
-        tables_ = envOrList("SYNC_TABLES", yamlTables);
+        tables_ = yamlTables;
 
         const auto log = root["logging"];
         logLevel_ = envOr("SYNC_LOG_LEVEL", log["level"].as<std::string>("info"));
@@ -87,6 +86,7 @@ std::string Config::getLocalConnString() const { return localConn_; }
 std::string Config::getHostedConnString() const { return hostedConn_; }
 int Config::getIntervalSeconds() const { return intervalSeconds_; }
 int Config::getBatchSize() const { return batchSize_; }
+bool Config::getAutoFetch() const { return autoFetch_; }
 std::vector<std::string> Config::getTables() const { return tables_; }
 std::string Config::getLogLevel() const { return logLevel_; }
 std::string Config::getLogFile() const { return logFile_; }

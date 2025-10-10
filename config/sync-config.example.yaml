@@ -16,6 +16,7 @@ databases:
 sync:
   interval_seconds: 5
   batch_size: 50
+  auto_fetch: true
   tables: []
 
 logging:
