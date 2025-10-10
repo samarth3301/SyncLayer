@@ -19,6 +19,7 @@ public:
     TableTracker(SyncLayer::DB::DBConnection* local, std::shared_ptr<SyncLayer::Config::Config> config);
     void discoverTables();
     std::vector<ChangeEvent> fetchChanges(int batchSize);
+    const std::vector<std::string>& getTrackedTables() const;
 
 private:
     SyncLayer::DB::DBConnection* local_;

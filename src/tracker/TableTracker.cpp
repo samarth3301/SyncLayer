@@ -15,10 +15,27 @@ void TableTracker::discoverTables()
     if (!cfgTables.empty()) {
         trackedTables_ = cfgTables;
     } else {
-        // Placeholder: in production, query information_schema
-        trackedTables_.push_back("public.sample");
+        // Discover all user tables in public schema
+        PGresult* res = PQexec(local_->raw(), "SELECT table_name FROM information_schema.tables WHERE table_schema = 'public' AND table_type = 'BASE TABLE'");
+        if (PQresultStatus(res) == PGRES_TUPLES_OK) {
+            int nRows = PQntuples(res);
+            for (int i = 0; i < nRows; ++i) {
+                std::string tableName = "public." + std::string(PQgetvalue(res, i, 0));
+                trackedTables_.push_back(tableName);
+            }
+        } else {
+            spdlog::error("Failed to discover tables: {}", PQerrorMessage(local_->raw()));
+        }
+        PQclear(res);
     }
-    spdlog::info("Tracking {} tables", trackedTables_.size());
+    std::string joinedTables;
+    if (!trackedTables_.empty()) {
+        joinedTables = trackedTables_[0];
+        for (size_t i = 1; i < trackedTables_.size(); ++i) {
+            joinedTables += ", " + trackedTables_[i];
+        }
+    }
+    spdlog::info("Tracking {} tables: {}", trackedTables_.size(), joinedTables);
 }
 
 std::vector<ChangeEvent> TableTracker::fetchChanges(int batchSize)
@@ -29,6 +46,11 @@ std::vector<ChangeEvent> TableTracker::fetchChanges(int batchSize)
         events.push_back( ChangeEvent{ trackedTables_.empty() ? "public.sample" : trackedTables_.front(), "insert", "{\"id\":1}" } );
     }
     return events;
+}
+
+const std::vector<std::string>& TableTracker::getTrackedTables() const
+{
+    return trackedTables_;
 }
 
 } // namespace SyncLayer::Tracker

@@ -19,6 +19,7 @@ public:
     void start();
 
 private:
+    void initialSync();
     std::shared_ptr<SyncLayer::Config::Config> config_;
     std::shared_ptr<SyncLayer::Logging::Logger> logger_;
     std::unique_ptr<SyncLayer::DB::DBConnection> local_;
