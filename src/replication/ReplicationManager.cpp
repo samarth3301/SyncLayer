@@ -20,8 +20,8 @@ ReplicationManager::ReplicationManager(std::shared_ptr<SyncLayer::Config::Config
 
 void ReplicationManager::initialSync()
 {
-    spdlog::info("Starting initial data sync for tables");
     const auto& tables = tracker_->getTrackedTables();
+    spdlog::info("Starting initial data sync for {} tables", tables.size());
     for (const auto& table : tables) {
         // Extract table name, handling schema prefix
         size_t dotPos = table.find_last_of('.');
@@ -39,6 +39,8 @@ void ReplicationManager::initialSync()
         int nFields = PQnfields(res);
         int nRows = PQntuples(res);
         spdlog::info("Table {} has {} rows", tableName, nRows);
+        
+        if (nRows == 0) continue; // No data to sync
         
         for (int i = 0; i < nRows; ++i) {
             std::string insert = "INSERT INTO \"" + tableName + "\" (";
@@ -62,11 +64,17 @@ void ReplicationManager::initialSync()
                     }
                 }
             }
-            insert += ")";
+            insert += ") ON CONFLICT (\"" + std::string(PQfname(res, 0)) + "\") DO UPDATE SET ";
+            for (int j = 1; j < nFields; ++j) {
+                if (j > 1) insert += ", ";
+                insert += "\"" + std::string(PQfname(res, j)) + "\" = EXCLUDED.\"" + std::string(PQfname(res, j)) + "\"";
+            }
             
             PGresult* insRes = PQexec(hosted_->raw(), insert.c_str());
             if (PQresultStatus(insRes) != PGRES_COMMAND_OK) {
-                spdlog::error("Failed to insert into {}: {}", tableName, PQerrorMessage(hosted_->raw()));
+                spdlog::error("Failed to upsert into {}: {}", tableName, PQerrorMessage(hosted_->raw()));
+            } else {
+                spdlog::info("Upserted row {} into {}", i + 1, tableName);
             }
             PQclear(insRes);
         }

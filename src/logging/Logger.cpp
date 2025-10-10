@@ -22,6 +22,7 @@ Logger::Logger(const std::string& level, const std::string& filePath) {
     auto logger = std::make_shared<spdlog::logger>("synclayer", sinks.begin(), sinks.end());
     spdlog::set_default_logger(logger);
     spdlog::set_level(toLevel(level));
+    spdlog::set_pattern("[%H:%M:%S %z] [%^%l%$] %v");
     spdlog::flush_on(spdlog::level::info);
 }
 
