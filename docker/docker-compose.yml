@@ -4,18 +4,5 @@ services:
       context: ..
       dockerfile: docker/Dockerfile
       
-    environment:
-      SYNC_LOCAL_HOST: "localhost"
-      SYNC_LOCAL_PORT: "5432"
-      SYNC_LOCAL_USER: syncuser
-      SYNC_LOCAL_PASSWORD: syncpass
-      SYNC_LOCAL_DBNAME: localdb
-      SYNC_HOSTED_HOST: "localhost"
-      SYNC_HOSTED_PORT: "5432"
-      SYNC_HOSTED_USER: syncuser
-      SYNC_HOSTED_PASSWORD: syncpass
-      SYNC_HOSTED_DBNAME: hosteddb
-      SYNC_INTERVAL_SECONDS: "5"
-      SYNC_BATCH_SIZE: "50"
-      SYNC_LOG_LEVEL: info
+    env_file: ../.env
     command: ["/app/SyncLayer"]
