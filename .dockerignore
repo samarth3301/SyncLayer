@@ -1,0 +1,6 @@
+build/
+test/
+.git/
+.vscode/
+README.md
+*.md

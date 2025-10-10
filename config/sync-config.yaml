@@ -1,0 +1,22 @@
+databases:
+  local:
+    host: localhost
+    port: 5432
+    user: syncuser
+    password: syncpass
+    dbname: localdb
+  hosted:
+    host: localhost
+    port: 5433
+    user: syncuser
+    password: syncpass
+    dbname: hosteddb
+
+sync:
+  interval_seconds: 5
+  batch_size: 50
+  tables: []
+
+logging:
+  level: info
+  file: logs/synclayer.log
