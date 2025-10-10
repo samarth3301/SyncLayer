@@ -2,6 +2,8 @@
 #include "../include/exceptions.hpp"
 #include <iostream>
 #include <spdlog/spdlog.h>
+#include <chrono>
+#include <thread>
 
 int main(int argc, char* argv[]) {
     try {
@@ -12,7 +14,12 @@ int main(int argc, char* argv[]) {
         // 3. Start the Core Engine orchestration loop
         
         SyncLayer::Core::Engine engine("./config/sync-config.yaml");
-        engine.run();
+        
+        while (true) {
+            engine.run();
+            spdlog::info("Sync completed. Sleeping for 1 hour...");
+            std::this_thread::sleep_for(std::chrono::hours(1));
+        }
         
     } catch (const SyncLayer::Exception::BaseException& e) {
         spdlog::critical("SyncLayer Critical Error: {}", e.what());
