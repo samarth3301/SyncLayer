@@ -4,6 +4,14 @@ Production-ready modular C++ microservice to replicate a local PostgreSQL databa
 
 **Note**: The sync process only handles INSERT and UPDATE operations. DELETE operations are not replicated to maintain data integrity and prevent accidental data loss in the hosted database.
 
+## Production Features
+
+- **Health Checks**: Validates database connectivity before sync operations.
+- **Retry Logic**: Exponential backoff for failed database queries (up to 3 attempts).
+- **Efficient Sync**: Initial data sync performed only once at startup, subsequent runs handle incremental changes.
+- **Containerized**: Docker image available on Docker Hub for easy deployment.
+- **Configurable**: YAML-based configuration for databases, sync parameters, and logging.
+
 ## Build Requirements
 
 - CMake >= 3.16

@@ -17,15 +17,18 @@ public:
     ReplicationManager(std::shared_ptr<SyncLayer::Config::Config> config,
                        std::shared_ptr<SyncLayer::Logging::Logger> logger);
     void start();
+    bool healthCheck();
 
 private:
     void initialSync();
+    PGresult* executeWithRetry(PGconn* conn, const std::string& query, int maxAttempts = 3);
     std::shared_ptr<SyncLayer::Config::Config> config_;
     std::shared_ptr<SyncLayer::Logging::Logger> logger_;
     std::unique_ptr<SyncLayer::DB::DBConnection> local_;
     std::unique_ptr<SyncLayer::DB::DBConnection> hosted_;
     std::unique_ptr<SyncLayer::Tracker::TableTracker> tracker_;
     std::unique_ptr<SyncLayer::Queue::QueueHandler> queue_;
+    bool initialSyncDone_;
 };
 
 } // namespace SyncLayer::Replication
