@@ -2,6 +2,8 @@
 
 Production-ready modular C++ microservice to replicate a local PostgreSQL database to a hosted PostgreSQL database in near real-time.
 
+**Note**: The sync process only handles INSERT and UPDATE operations. DELETE operations are not replicated to maintain data integrity and prevent accidental data loss in the hosted database.
+
 ## Build Requirements
 
 - CMake >= 3.16

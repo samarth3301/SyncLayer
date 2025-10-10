@@ -18,6 +18,4 @@ private:
     std::queue<SyncLayer::Tracker::ChangeEvent> q_;
 };
 
-} // namespace SyncLayer::Queue
-
-
+}
