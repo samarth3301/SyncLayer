@@ -40,12 +40,14 @@ static std::string makeConn(const YAML::Node& node,
     const std::string user = envOr((std::string(envPrefix) + "_USER").c_str(), node["user"].as<std::string>("postgres"));
     const std::string password = envOr((std::string(envPrefix) + "_PASSWORD").c_str(), node["password"].as<std::string>(""));
     const std::string dbname = envOr((std::string(envPrefix) + "_DBNAME").c_str(), node["dbname"].as<std::string>("postgres"));
+    const std::string sslmode = envOr((std::string(envPrefix) + "_SSLMODE").c_str(), node["sslmode"].as<std::string>("disable"));
     std::ostringstream ss;
     ss << "host=" << host
        << " port=" << port
        << " user=" << user
        << " password=" << password
-       << " dbname=" << dbname;
+       << " dbname=" << dbname
+       << " sslmode=" << sslmode;
     return ss.str();
 }
 
