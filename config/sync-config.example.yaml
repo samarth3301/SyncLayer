@@ -5,6 +5,7 @@ databases:
     user: syncuser
     password: syncpass
     dbname: localdb
+
   hosted:
     host: localhost
     port: 5433
