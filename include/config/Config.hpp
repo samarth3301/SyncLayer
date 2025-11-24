@@ -21,6 +21,8 @@ public:
     std::string getLogLevel() const;
     std::string getLogFile() const;
 
+    int getHealthPort() const;
+
 private:
     void loadFromFile(const std::string& path);
 
@@ -33,6 +35,7 @@ private:
     std::vector<std::string> tables_;
     std::string logLevel_ {"info"};
     std::string logFile_ {"logs/synclayer.log"};
+    int healthPort_ {8080};
 };
 
 } // namespace SyncLayer::Config

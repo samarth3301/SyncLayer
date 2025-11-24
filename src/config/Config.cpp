@@ -75,6 +75,9 @@ void Config::loadFromFile(const std::string& path) {
         const auto log = root["logging"];
         logLevel_ = envOr("SYNC_LOG_LEVEL", log["level"].as<std::string>("info"));
         logFile_ = envOr("SYNC_LOG_FILE", log["file"].as<std::string>("logs/synclayer.log"));
+
+        const auto health = root["health"];
+        healthPort_ = envOrInt("SYNC_HEALTH_PORT", health["port"].as<int>(8080));
     } catch (const YAML::BadFile&) {
         throw SyncLayer::Exception::ConfigurationError("Config file not found: " + path);
     } catch (const std::exception& e) {
@@ -90,6 +93,8 @@ bool Config::getAutoFetch() const { return autoFetch_; }
 std::vector<std::string> Config::getTables() const { return tables_; }
 std::string Config::getLogLevel() const { return logLevel_; }
 std::string Config::getLogFile() const { return logFile_; }
+
+int Config::getHealthPort() const { return healthPort_; }
 
 } // namespace SyncLayer::Config
 

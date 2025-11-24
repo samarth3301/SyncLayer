@@ -22,3 +22,6 @@ sync:
 logging:
   level: info
   file: logs/synclayer.log
+
+health:
+  port: 8080

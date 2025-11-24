@@ -1,4 +1,15 @@
 services:
-  synclayer:
-    image: samarth3301/synclayer:latest
+  synclayer1:
+    image: samarth3301/synclayer:latest  # Or your custom image
     restart: unless-stopped
+    environment:
+      - SYNC_CONFIG_PATH=/app/config/sync-config.example.yaml
+      - SYNC_HEALTH_PORT=8081
+    ports:
+      - "8081:8081"
+    volumes:
+      - ./config/:/app/config/
+    # depends_on:
+    #   postgres_local:
+    #     condition: service_healthy
+    # Uncomment and modify depends_on if using local databases

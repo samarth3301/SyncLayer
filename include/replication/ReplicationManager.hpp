@@ -12,12 +12,24 @@ namespace Logging { class Logger; }
 
 namespace SyncLayer::Replication {
 
+struct HealthStatus {
+    bool overall;
+    bool localDb;
+    bool hostedDb;
+    long localConnections;
+    long hostedConnections;
+    long localDbSizeMB;
+    long hostedDbSizeMB;
+    long localActiveQueries;
+    long hostedActiveQueries;
+};
+
 class ReplicationManager {
 public:
     ReplicationManager(std::shared_ptr<SyncLayer::Config::Config> config,
                        std::shared_ptr<SyncLayer::Logging::Logger> logger);
     void start();
-    bool healthCheck();
+    HealthStatus healthCheck();
 
 private:
     void initialSync();
