@@ -19,6 +19,7 @@ Production-ready modular C++ microservice to replicate a local PostgreSQL databa
 - [Health Check API](#health-check-api)
 - [Development](#development)
 - [Contributing](#contributing)
+- [Code of Conduct](#code-of-conduct)
 - [License](#license)
 - [Support](#support)
 
@@ -294,6 +295,10 @@ cd build && ctest
 - Write comprehensive unit tests
 - Update documentation for API changes
 - Ensure all tests pass before submitting PRs
+
+## Code of Conduct
+
+This project has adopted a code of conduct to ensure a welcoming and inclusive environment for all contributors. Please read our [Code of Conduct](CODE_OF_CONDUCT.md) before participating.
 
 ## License
 

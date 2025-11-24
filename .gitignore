@@ -1,7 +1,82 @@
+# Build directories
 build/
+cmake-build-*/
+out/
+bin/
+lib/
 
+# IDE and editor files
 .vscode/
+.idea/
+*.swp
+*.swo
+*~
 
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Environment and config files
 .env
-
+.env.local
+.env.*.local
 sync-config.yaml
+config/sync-config.yaml
+
+# Logs
+*.log
+logs/
+spdlog/
+
+# Temporary files
+*.tmp
+*.temp
+.cache/
+
+# CMake generated files
+CMakeCache.txt
+CMakeFiles/
+cmake_install.cmake
+CTestTestfile.cmake
+Makefile
+compile_commands.json
+CMakeConfigureLog.yaml
+InstallScripts.json
+progress.marks
+TargetDirectories.txt
+
+# Test artifacts
+Testing/
+test/Testing/
+
+# Docker
+.dockerignore
+
+# Package files
+*.deb
+*.rpm
+*.tar.gz
+*.zip
+
+# Coverage reports
+coverage/
+*.gcda
+*.gcno
+*.gcov
+coverage.info
+lcov-report/
+
+# Documentation build
+docs/build/
+docs/_build/
+
+# Backup files
+*.bak
+*.backup
+*.orig
+*.rej
