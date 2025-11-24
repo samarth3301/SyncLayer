@@ -25,6 +25,7 @@ void ReplicationManager::initialSync()
     const auto& tables = tracker_->getTrackedTables();
     spdlog::info("Starting initial data sync for {} tables", tables.size());
     const int pageSize = 1000;
+    const int batchSize = 100; // Batch inserts
     for (const auto& table : tables) {
         const auto& pk = tracker_->getPrimaryKeys(table);
         if (pk.empty()) {
@@ -57,36 +58,69 @@ void ReplicationManager::initialSync()
             }
             
             int nFields = PQnfields(res);
+            std::vector<std::string> inserts;
             for (int i = 0; i < nRows; ++i) {
-                std::string insert = "INSERT INTO " + table + " (";
+                std::string values = "(";
                 for (int j = 0; j < nFields; ++j) {
-                    if (j > 0) insert += ",";
-                    insert += "\"" + std::string(PQfname(res, j)) + "\"";
-                }
-                insert += ") VALUES (";
-                for (int j = 0; j < nFields; ++j) {
-                    if (j > 0) insert += ",";
+                    if (j > 0) values += ",";
                     if (PQgetisnull(res, i, j)) {
-                        insert += "NULL";
+                        values += "NULL";
                     } else {
                         const char* val = PQgetvalue(res, i, j);
                         char* escaped = PQescapeLiteral(hosted_->raw(), val, strlen(val));
                         if (escaped) {
-                            insert += escaped;
+                            values += escaped;
                             PQfreemem(escaped);
                         } else {
-                            insert += "NULL";
+                            values += "NULL";
                         }
                     }
                 }
-                insert += ") ON CONFLICT DO NOTHING"; // For initial sync, avoid duplicates
+                values += ")";
+                inserts.push_back(values);
                 
-                PGresult* insRes = executeWithRetry(hosted_->raw(), insert);
+                if (inserts.size() >= batchSize) {
+                    std::string insertQuery = "INSERT INTO " + table + " (";
+                    for (int j = 0; j < nFields; ++j) {
+                        if (j > 0) insertQuery += ",";
+                        insertQuery += "\"" + std::string(PQfname(res, j)) + "\"";
+                    }
+                    insertQuery += ") VALUES ";
+                    for (size_t k = 0; k < inserts.size(); ++k) {
+                        if (k > 0) insertQuery += ",";
+                        insertQuery += inserts[k];
+                    }
+                    insertQuery += " ON CONFLICT DO NOTHING";
+                    
+                    PGresult* insRes = executeWithRetry(hosted_->raw(), insertQuery);
+                    if (!insRes || PQresultStatus(insRes) != PGRES_COMMAND_OK) {
+                        spdlog::error("Failed to batch insert into {}: {}", table, insRes ? PQerrorMessage(hosted_->raw()) : "No result");
+                    }
+                    if (insRes) PQclear(insRes);
+                    inserts.clear();
+                }
+            }
+            // Insert remaining
+            if (!inserts.empty()) {
+                std::string insertQuery = "INSERT INTO " + table + " (";
+                for (int j = 0; j < nFields; ++j) {
+                    if (j > 0) insertQuery += ",";
+                    insertQuery += "\"" + std::string(PQfname(res, j)) + "\"";
+                }
+                insertQuery += ") VALUES ";
+                for (size_t k = 0; k < inserts.size(); ++k) {
+                    if (k > 0) insertQuery += ",";
+                    insertQuery += inserts[k];
+                }
+                insertQuery += " ON CONFLICT DO NOTHING";
+                
+                PGresult* insRes = executeWithRetry(hosted_->raw(), insertQuery);
                 if (!insRes || PQresultStatus(insRes) != PGRES_COMMAND_OK) {
-                    spdlog::error("Failed to insert into {}: {}", table, insRes ? PQerrorMessage(hosted_->raw()) : "No result");
+                    spdlog::error("Failed to batch insert into {}: {}", table, insRes ? PQerrorMessage(hosted_->raw()) : "No result");
                 }
                 if (insRes) PQclear(insRes);
             }
+            
             PQclear(res);
             totalRows += nRows;
             offset += pageSize;
@@ -102,7 +136,8 @@ void ReplicationManager::start()
     spdlog::info("ReplicationManager started. Interval {} sec, batch {}", 
                  config_->getIntervalSeconds(), config_->getBatchSize());
     
-    if (!healthCheck()) {
+    auto health = healthCheck();
+    if (!health.overall) {
         spdlog::error("Health check failed. Aborting sync.");
         return;
     }
@@ -124,27 +159,86 @@ void ReplicationManager::start()
     queue_->drainTo(hosted_.get());
 }
 
-bool ReplicationManager::healthCheck() {
+HealthStatus ReplicationManager::healthCheck() {
     spdlog::info("Performing health check on databases...");
     
+    HealthStatus status;
+    status.localDb = false;
+    status.hostedDb = false;
+    status.localConnections = 0;
+    status.hostedConnections = 0;
+    status.localDbSizeMB = 0;
+    status.hostedDbSizeMB = 0;
+    status.localActiveQueries = 0;
+    status.hostedActiveQueries = 0;
+    
+    // Check local DB
     PGresult* res = PQexec(local_->raw(), "SELECT 1");
-    if (PQresultStatus(res) != PGRES_TUPLES_OK) {
+    if (PQresultStatus(res) == PGRES_TUPLES_OK) {
+        status.localDb = true;
+        
+        // Get connections
+        PQclear(res);
+        res = PQexec(local_->raw(), "SELECT count(*) FROM pg_stat_activity WHERE datname = current_database()");
+        if (PQresultStatus(res) == PGRES_TUPLES_OK && PQntuples(res) > 0) {
+            status.localConnections = atol(PQgetvalue(res, 0, 0));
+        }
+        
+        // Get DB size
+        PQclear(res);
+        res = PQexec(local_->raw(), "SELECT pg_database_size(current_database()) / 1024 / 1024");
+        if (PQresultStatus(res) == PGRES_TUPLES_OK && PQntuples(res) > 0) {
+            status.localDbSizeMB = atol(PQgetvalue(res, 0, 0));
+        }
+        
+        // Get active queries
+        PQclear(res);
+        res = PQexec(local_->raw(), "SELECT count(*) FROM pg_stat_activity WHERE state = 'active' AND datname = current_database()");
+        if (PQresultStatus(res) == PGRES_TUPLES_OK && PQntuples(res) > 0) {
+            status.localActiveQueries = atol(PQgetvalue(res, 0, 0));
+        }
+    } else {
         spdlog::error("Local DB health check failed: {}", PQerrorMessage(local_->raw()));
-        PQclear(res);
-        return false;
     }
     PQclear(res);
     
+    // Check hosted DB
     res = PQexec(hosted_->raw(), "SELECT 1");
-    if (PQresultStatus(res) != PGRES_TUPLES_OK) {
-        spdlog::error("Hosted DB health check failed: {}", PQerrorMessage(hosted_->raw()));
+    if (PQresultStatus(res) == PGRES_TUPLES_OK) {
+        status.hostedDb = true;
+        
+        // Get connections
         PQclear(res);
-        return false;
+        res = PQexec(hosted_->raw(), "SELECT count(*) FROM pg_stat_activity WHERE datname = current_database()");
+        if (PQresultStatus(res) == PGRES_TUPLES_OK && PQntuples(res) > 0) {
+            status.hostedConnections = atol(PQgetvalue(res, 0, 0));
+        }
+        
+        // Get DB size
+        PQclear(res);
+        res = PQexec(hosted_->raw(), "SELECT pg_database_size(current_database()) / 1024 / 1024");
+        if (PQresultStatus(res) == PGRES_TUPLES_OK && PQntuples(res) > 0) {
+            status.hostedDbSizeMB = atol(PQgetvalue(res, 0, 0));
+        }
+        
+        // Get active queries
+        PQclear(res);
+        res = PQexec(hosted_->raw(), "SELECT count(*) FROM pg_stat_activity WHERE state = 'active' AND datname = current_database()");
+        if (PQresultStatus(res) == PGRES_TUPLES_OK && PQntuples(res) > 0) {
+            status.hostedActiveQueries = atol(PQgetvalue(res, 0, 0));
+        }
+    } else {
+        spdlog::error("Hosted DB health check failed: {}", PQerrorMessage(hosted_->raw()));
     }
     PQclear(res);
     
-    spdlog::info("Health check passed.");
-    return true;
+    status.overall = status.localDb && status.hostedDb;
+    if (status.overall) {
+        spdlog::info("Health check passed.");
+    } else {
+        spdlog::warn("Health check failed.");
+    }
+    return status;
 }
 
 PGresult* ReplicationManager::executeWithRetry(PGconn* conn, const std::string& query, int maxAttempts) {
